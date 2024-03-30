@@ -3,7 +3,10 @@ from time import sleep
 import pins
 import settings
 import pygame
-
+import board
+import adafruit_tca9548a
+import threading
+import os
 
 map = {
     "LX": ["A",0],
@@ -29,11 +32,14 @@ map = {
 
 }
 
-
-def initialiseGPIO():
-    global pwm,controller, sensors
+def initializeGPIO():
+    global pwm,controller, sensors, mode, lockall
+    mode = 'off'
     pygame.init()
     pygame.joystick.init()
+    print(pygame.joystick.get_count==0)
+    while pygame.joystick.get_count() <= 0:
+        sleep(0.5)
     controller = pygame.joystick.Joystick(0)
     controller.init()
     print("Controller connected:",controller.get_name())
@@ -42,6 +48,8 @@ def initialiseGPIO():
     GPIO.setup(pins.br, GPIO.OUT)
     GPIO.setup(pins.fl, GPIO.OUT)
     GPIO.setup(pins.fr, GPIO.OUT)
+    GPIO.setup(pins.led1, GPIO.OUT)
+    GPIO.setup(pins.led2, GPIO.OUT)
     GPIO.setup(pins.clawpwm, GPIO.OUT)
     pwm=GPIO.PWM(pins.clawpwm, 50)
     pwm.start(0)
@@ -50,8 +58,23 @@ def initialiseGPIO():
     sensors=[]
     for channel in range(4):
         sensors.append(tca[channel])
+    ledThread = threading.Thread(target=leds)
+    ledThread.start()
+    stopThread = threading.Thread(target=stop)
+    stopThread.start()
+    modeSelector()
+
+def stop():
+    while True:
+        print(getController('LTRIG'))
+        if getController('LTRIG') > 0:
+            print('help')
+            move('stop')
+            os._exit(0)
+        sleep(0.03)
 
 def moveClaw(position):
+        print(position)
         turnTo = settings.clawOpen
         if position == 'closed': turnTo = settings.clawClosed
         duty = turnTo*(-2.5)+7.5
@@ -60,6 +83,7 @@ def moveClaw(position):
         sleep(0.03)
 
 def move(direction):
+    print(direction)
     if direction == 'forwards':
         GPIO.output(pins.fl, True)
         GPIO.output(pins.bl, False)
@@ -106,6 +130,11 @@ def getTof():
     print(readings)
     return readings
 
+def setleds(l1,l2):
+    print(l1,l2)
+    GPIO.output(pins.led1,l1)
+    GPIO.output(pins.led2,l2)
+
 def manual(): 
     clawpos = 'open'
     sleep(0.5)   
@@ -123,12 +152,12 @@ def manual():
         elif claw < 0.5 and clawpos == 'open':
             clawpos = 'closed'
             moveClaw(clawpos)
-        if abs(turn) + abs(forwards)<0.1: move('stop')
+        if abs(turn) + abs(forwards)<0.2: move('stop')
         elif abs(turn) > abs(forwards):
-            if turn < 1: move('left')
+            if turn < 0: move('left')
             else: move('right')
         else:
-            if forwards>1: move('forwards')
+            if forwards<0: move('forwards')
             else: move('backwards')
 
 def lava():
@@ -174,16 +203,39 @@ def escape():
             sleep(1)
 
 def modeSelector():
+    global mode
     while True:
+        mode = 'off'
         if getController('A') == 1:
+            mode = 'manual'
             manual()
         if getController('X') == 1:
+            mode = 'escape'
             escape()
         if getController('Y') == 1:
+            mode = 'lava'
             lava()
 
+def leds():
+    while True:
+        if mode == 'manual':
+            setleds(True, True)
+            sleep(1)
+        elif mode == 'escape':
+            setleds(True, False)
+            sleep(0.5)
+            setleds(False, True)
+            sleep(0.5)
+        elif mode == 'lava':
+            setleds(True, True)
+            sleep(0.5)
+            setleds(False,False)
+            sleep(0.5)
+        else:
+            setleds(False, False)
+            sleep(1)
 
-modeSelector()
+initializeGPIO()
 
 # TO DO:
 #  - escape route (when wall significantly greater than other wall move a tiny bit then turn until nearer wall parallel) - done I think

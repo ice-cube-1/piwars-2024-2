@@ -1,5 +1,7 @@
-clawpwm = 1 # CHANGE
-fl = 1 # CHANGE
-fr = 1 # CHANGE
-bl = 1 # CHANGE
-br = 1 # CHANGE
+clawpwm = 12
+fl = 5
+fr = 6
+bl = 13
+br = 19
+led1 = 17
+led2 = 27
