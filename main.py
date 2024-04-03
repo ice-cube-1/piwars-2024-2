@@ -84,22 +84,22 @@ def moveClaw(position):
 
 def move(direction):
     print(direction)
-    if direction == 'forwards':
+    if direction == 'left':
         GPIO.output(pins.fl, True)
         GPIO.output(pins.bl, False)
         GPIO.output(pins.fr, True)
         GPIO.output(pins.br, False)
-    elif direction == 'backwards':
+    elif direction == 'right':
         GPIO.output(pins.fl, False)
         GPIO.output(pins.bl, True)
         GPIO.output(pins.fr, False)
         GPIO.output(pins.br, True)
-    elif direction == 'left':
+    elif direction == 'backwards':
         GPIO.output(pins.fl, False)
         GPIO.output(pins.bl, True)
         GPIO.output(pins.fr, True)
         GPIO.output(pins.br, False)
-    elif direction == 'right':
+    elif direction == 'forwards':
         GPIO.output(pins.fl, True)
         GPIO.output(pins.bl, False)
         GPIO.output(pins.fr, False)
@@ -125,8 +125,7 @@ def getTof():
             readings.append(distanceBytes[0]+distanceBytes[1]*256)
             luna.unlock()
     for i in range(len(readings)):
-        if readings[i] == 0:
-            readings[i] == 1000
+        if readings[i] == 0: readings[i] == 1000
     print(readings)
     return readings
 
@@ -162,56 +161,53 @@ def manual():
 
 def lava():
     sleep(0.5)
-    while True:
-        if getController('B') == 1:
-            move('stop')
-            sleep(0.5)
-            return
-        bl,br,fl,fr = getTof()
-        if bl+fr-br-fl>settings.lavatolerance: move('left')
-        elif br+fl-bl-fr>settings.lavatolerance: move('right')
-        else: move('forwards')
-
-def escape():
+    move('forwards')
     sleep(0.5)
     while True:
         move('forwards')
+        sleep(0.05)
         if getController('B') == 1:
             move('stop')
-            sleep(0.5)
+            sleep(0.05)
             return
         bl,br,fl,fr = getTof()
-        if bl-br>settings.escapeToTurn:
-            sleep(0.5)
+        #print(bl+fr-br-fl, br+fl-bl-fr)
+        #if bl+fr-br-fl>settings.lavatolerance: move('left')
+        #elif br+fl-bl-fr>settings.lavatolerance: move('right')
+        if abs(bl-fl) < abs(br-fr):
+            toturn=br-fr
+        else:
+            toturn=fl-bl
+        print(toturn)
+        if bl-fl>50:
             move('left')
             sleep(0.5)
-            bl,br,fl,fr = getTof()
-            while br-fr>settings.escapeDoneTurn:
-                sleep(0.03)
-                bl,br,fl,fr = getTof()
             move('forwards')
-            sleep(1)
-        elif br-bl>settings.escapeToTurn:
-            sleep(0.5)
+            while br > 50:
+                bl,br,fl,fr = getTof()
+                move('forwards')
+        elif br-fr >50:
             move('right')
             sleep(0.5)
-            bl,br,fl,fr = getTof()
-            while bl-fl>settings.escapeDoneTurn:
-                sleep(0.03)
-                bl,br,fl,fr = getTof()
             move('forwards')
-            sleep(1)
+            while bl > 50:
+                bl,br,fl,fr = getTof()
+                move('forwards')
+        elif fl < 8: move('right')
+        elif fr < 8: move('left')
+        elif toturn > settings.lavatolerance: move('left')
+        elif toturn < -settings.lavatolerance: move('right')
+        else: move('forwards')
+        sleep(0.1)
 
 def modeSelector():
     global mode
+    move('stop')
     while True:
         mode = 'off'
         if getController('A') == 1:
             mode = 'manual'
             manual()
-        if getController('X') == 1:
-            mode = 'escape'
-            escape()
         if getController('Y') == 1:
             mode = 'lava'
             lava()
