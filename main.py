@@ -171,34 +171,59 @@ def lava():
             sleep(0.05)
             return
         bl,br,fl,fr = getTof()
-        #print(bl+fr-br-fl, br+fl-bl-fr)
-        #if bl+fr-br-fl>settings.lavatolerance: move('left')
-        #elif br+fl-bl-fr>settings.lavatolerance: move('right')
         if abs(bl-fl) < abs(br-fr):
             toturn=br-fr
         else:
             toturn=fl-bl
         print(toturn)
-        if bl-fl>50:
-            move('left')
-            sleep(0.5)
-            move('forwards')
-            while br > 50:
-                bl,br,fl,fr = getTof()
-                move('forwards')
-        elif br-fr >50:
-            move('right')
-            sleep(0.5)
-            move('forwards')
-            while bl > 50:
-                bl,br,fl,fr = getTof()
-                move('forwards')
-        elif fl < 8: move('right')
+        if fl < 8: move('right')
         elif fr < 8: move('left')
         elif toturn > settings.lavatolerance: move('left')
         elif toturn < -settings.lavatolerance: move('right')
         else: move('forwards')
         sleep(0.1)
+
+
+def escape():
+    sleep(0.5)
+    move('forwards')
+    sleep(0.5)
+    turnSequence=['right','right','left','left','right']
+    nextTurnIdx=0
+    while True:
+        move('forwards')
+        sleep(0.05)
+        if getController('B') == 1:
+            move('stop')
+            sleep(0.05)
+            return
+        bl,br,fl,fr=getTof()
+        if nextTurnIdx==5:
+            while bl<50 and br<50:
+                bl,br,fl,fr=getTof()
+            sleep(0.5)
+            move('stop')
+            return
+        elif turnSequence[nextTurnIdx] == 'right' and br>50:
+            #sleep(0.1)
+            move('right')
+            sleep(0.5)
+            move('forwards')
+            bl,br,fl,fr=getTof()
+            while br>50:
+                 bl,br,fl,fr = getTof()
+            sleep(0.2)
+            nextTurnIdx+=1
+        elif turnSequence[nextTurnIdx] == 'left' and bl>50:
+            #sleep(0.1)
+            move('left')
+            sleep(0.5)
+            move('forwards')
+            bl,br,fl,fr=getTof()
+            while bl>50:
+                bl,br,fl,fr=getTof()
+            sleep(0.2)
+            nextTurnIdx+=1
 
 def modeSelector():
     global mode
@@ -211,6 +236,9 @@ def modeSelector():
         if getController('Y') == 1:
             mode = 'lava'
             lava()
+        if getController('X') == 1:
+            mode = 'escape'
+            escape()
 
 def leds():
     while True:
