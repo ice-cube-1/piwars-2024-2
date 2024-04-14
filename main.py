@@ -7,6 +7,7 @@ import board
 import adafruit_tca9548a
 import threading
 import os
+import serial
 
 map = {
     "LX": ["A",0],
@@ -33,7 +34,7 @@ map = {
 }
 
 def initializeGPIO():
-    global pwm,controller, sensors, mode, lockall
+    global pwm,controller, sensors, mode, lockall, ser
     mode = 'off'
     pygame.init()
     pygame.joystick.init()
@@ -66,7 +67,7 @@ def initializeGPIO():
 
 def stop():
     while True:
-        print(getController('LTRIG'))
+        #print(getController('LTRIG'))
         if getController('LTRIG') > 0:
             print('help')
             move('stop')
@@ -74,7 +75,7 @@ def stop():
         sleep(0.03)
 
 def moveClaw(position):
-        print(position)
+        #print(position)
         turnTo = settings.clawOpen
         if position == 'closed': turnTo = settings.clawClosed
         duty = turnTo*(-2.5)+7.5
@@ -83,13 +84,13 @@ def moveClaw(position):
         sleep(0.03)
 
 def move(direction):
-    print(direction)
-    if direction == 'left':
+    #print(direction)
+    if direction == 'right':
         GPIO.output(pins.fl, True)
         GPIO.output(pins.bl, False)
         GPIO.output(pins.fr, True)
         GPIO.output(pins.br, False)
-    elif direction == 'right':
+    elif direction == 'left':
         GPIO.output(pins.fl, False)
         GPIO.output(pins.bl, True)
         GPIO.output(pins.fr, False)
@@ -126,15 +127,18 @@ def getTof():
             luna.unlock()
     for i in range(len(readings)):
         if readings[i] == 0: readings[i] == 1000
-    print(readings)
+    #print(readings)
     return readings
 
 def setleds(l1,l2):
-    print(l1,l2)
+    #print(l1,l2)
     GPIO.output(pins.led1,l1)
     GPIO.output(pins.led2,l2)
 
-def manual(): 
+def manual(firer = False):
+    if firer:
+        ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
+        ser.reset_input_buffer()
     clawpos = 'open'
     sleep(0.5)   
     while True:
@@ -151,6 +155,17 @@ def manual():
         elif claw < 0.5 and clawpos == 'open':
             clawpos = 'closed'
             moveClaw(clawpos)
+        if firer:
+            if getController('RY') > 0.5: 
+                ser.write(b'D')
+                sleep(0.1)
+            if getController('RY') < -0.5: 
+                ser.write(b'U')
+                sleep(0.1)
+            if getController('A') == 1: 
+                ser.write(b'F')
+                sleep(0.5)
+            if ser.in_waiting > 0: print(ser.readline().decode('utf-8').rstrip())
         if abs(turn) + abs(forwards)<0.2: move('stop')
         elif abs(turn) > abs(forwards):
             if turn < 0: move('left')
@@ -175,7 +190,7 @@ def lava():
             toturn=br-fr
         else:
             toturn=fl-bl
-        print(toturn)
+        #print(toturn)
         if fl < 8: move('right')
         elif fr < 8: move('left')
         elif toturn > settings.lavatolerance: move('left')
@@ -239,6 +254,9 @@ def modeSelector():
         if getController('X') == 1:
             mode = 'escape'
             escape()
+        if getController('RBUMP') == 1:
+            mode = 'pfm'
+            manual(firer=True)
 
 def leds():
     while True:
@@ -255,14 +273,13 @@ def leds():
             sleep(0.5)
             setleds(False,False)
             sleep(0.5)
+        elif mode == 'pfm':
+            setleds(True, True)
+            sleep(0.5)
+            setleds(True,False)
+            sleep(0.5)
         else:
             setleds(False, False)
             sleep(1)
 
 initializeGPIO()
-
-# TO DO:
-#  - escape route (when wall significantly greater than other wall move a tiny bit then turn until nearer wall parallel) - done I think
-#  - modeselector (same as before kinda) - done but probably will change
-#  - LEDs - could be simple, but could maybe thread them
-#  - proofread because likely doesn't work 
